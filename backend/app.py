@@ -13,7 +13,7 @@ def get_status():
         "message": "Hello from the Flask backend",
         "courses_loaded": 0
     })
-
+ 
 if __name__ == '__main__':
     # Runs on port 5000 by default
     app.run(debug=True, port=5000)
