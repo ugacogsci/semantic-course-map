@@ -1,0 +1,10 @@
+# Python / Flask
+backend/venv/
+backend/__pycache__/
+*.pyc
+.env
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+.DS_Store
