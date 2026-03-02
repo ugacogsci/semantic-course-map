@@ -11,7 +11,7 @@ def scrape_all_uga_courses():
 
     # Mimic the exact browser headers so the server accepts the request
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) Gecko/20100101 Firefox/148.0",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) Gecko/20100101 Firefox/148.0", # This is straight from my manual webpage access
         "X-Requested-With": "XMLHttpRequest",
         "Referer": "https://bulletin.uga.edu/Course/Index"
     }
@@ -63,13 +63,18 @@ def scrape_all_uga_courses():
                 desc_element = bottom_div.find('p') if bottom_div else None
                 description = desc_element.text.strip() if desc_element else "No description available."
                 
+                # Grab the link
+                link_element = card.find('a', class_='full-description')
+                course_url_path = link_element['href'] if link_element else ""
+
                 all_courses.append({
                     "college": "UGA",
                     "term": "All", # Since we are grabbing everything
                     "subject": subject,
                     "number": number,
                     "title": title,
-                    "description": description
+                    "description": description,
+                    "url": f"https://bulletin.uga.edu{course_url_path}"
                 })
                 
             # Sleep for 1 second so we don't accidentally DDoS the UGA Bulletin
