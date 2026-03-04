@@ -2,7 +2,11 @@ import json
 import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import openai
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import RAG module
 from rag import get_retrieval_results, initialize as initialize_rag
@@ -11,13 +15,18 @@ app = Flask(__name__)
 # Enable CORS so React frontend can talk to Flask backend
 CORS(app)
 
-# Configure OpenAI API
-# Set your API key as environment variable: export OPENAI_API_KEY="your-key"
-openai.api_key = os.getenv('OPENAI_API_KEY', '')
+# Configure Gemini API
+# Set custom key with: export GEMINI_API_KEY="your-key"
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyCSlhtZIJgqmaLiP39F3Re0YouJnHsStss')
+GEMINI_MODEL = "gemini-2.5-flash"
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+else:
+    print("Warning: GEMINI_API_KEY not configured. /api/ask will fall back to basic responses.")
 
 # RAG Configuration
 RAG_TOP_K = 5  # Number of courses to retrieve for context
-LLM_MODEL = "gpt-3.5-turbo"  # or "gpt-4" for better responses
 
 # Load the data once into memory when the app starts
 def load_data():
@@ -139,10 +148,10 @@ Please provide a helpful response that:
 1. Directly addresses the student's question
 2. Recommends specific courses from the provided information
 3. Explains why each recommended course might be a good fit
-4. Mentions any prerequisites or important details if available"""
+"""
 
-        # Check if OpenAI API key is configured
-        if not openai.api_key:
+        # Check if Gemini API key is configured
+        if not GEMINI_API_KEY:
             # Fallback response without LLM
             course_list = "\n".join([
                 f"• {r['course'].get('subject', '')} {r['course'].get('number', '')}: {r['course'].get('title', '')} (Relevance: {r['similarity']:.0%})"
@@ -152,19 +161,21 @@ Please provide a helpful response that:
 
 {course_list}
 
-Note: For a more detailed, personalized response, please configure the OpenAI API key."""
+Note: For a more detailed, personalized response, please configure the Gemini API key."""
         else:
-            # Call OpenAI API
-            response = openai.chat.completions.create(
-                model=LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+            # Call Gemini API
+            model = genai.GenerativeModel(model_name=GEMINI_MODEL)
+            response = model.generate_content(
+                contents=[
+                    system_prompt,
+                    user_prompt
                 ],
-                temperature=0.7,
-                max_tokens=1000
+                generation_config={
+                    "temperature": 0.7,
+                    "max_output_tokens": 1000
+                }
             )
-            answer = response.choices[0].message.content
+            answer = (response.text or "Unable to generate a response.").strip()
         
         # Format source courses for response
         formatted_sources = [
