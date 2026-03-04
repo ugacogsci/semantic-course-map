@@ -17,7 +17,7 @@ CORS(app)
 
 # Configure Gemini API
 # Set custom key with: export GEMINI_API_KEY="your-key"
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyCSlhtZIJgqmaLiP39F3Re0YouJnHsStss')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyDPGcsdtnzaeoCYy-q8gCVNHATYioYeo7M')
 GEMINI_MODEL = "gemini-2.5-flash"
 
 if GEMINI_API_KEY:
@@ -131,11 +131,7 @@ def ask_chatbot():
         sources = retrieval['results']
         
         # Build the prompt for the LLM
-        system_prompt = """You are a helpful academic advisor for the University of Georgia (UGA). 
-Your role is to recommend courses based on the student's interests and questions.
-Use the provided course information to give accurate, helpful recommendations.
-Always mention specific course codes (e.g., CSCI 1301) when recommending courses.
-Be concise but informative in your responses."""
+        system_prompt = """You help students explore University of Georgia (UGA) courses. Your role is to recommend courses based on the student's interests and questions. Use the provided course information to give accurate, helpful recommendations. If the user’s (student’s) question or interests are unclear, ask a clarifying question before giving recommendations. If information is missing or not included in the provided data, state this clearly and do not make up details. Always mention specific course codes (e.g., CSCI 1301) when recommending courses. Be concise but informative in your responses."""
 
         user_prompt = f"""Based on the following course information, please answer this student's question:
 
