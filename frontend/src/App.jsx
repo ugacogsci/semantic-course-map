@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ChatBox from './components/ChatBox';
 
 function App() {
   const[colleges, setColleges] = useState([]);
@@ -96,6 +97,9 @@ function App() {
           !loading && selectedSubject && <p>No courses found for this subject.</p>
         )}
       </div>
+      
+      {/* RAG Chatbot for course recommendations */}
+      <ChatBox />
     </div>
   );
 }
