@@ -8,6 +8,7 @@ dependencies:
   - python=3.10
   - pytorch
   - umap-learn
+  - python-annoy
   - pip
   - pip:
     - Flask==3.0.2
@@ -16,4 +17,6 @@ dependencies:
     - beautifulsoup4==4.12.3
     - sentence-transformers==2.5.1
     - pandas==2.2.1
-    - scikit-learn==1.4.1.post1
+    - scikit-learn==1.7.2
+    - pacmap
+    - trimap
