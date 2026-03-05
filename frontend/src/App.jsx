@@ -7,6 +7,9 @@ import cytoscape from "cytoscape";
 //   import courses from "./database_mapped.json";
 import courses from "./database_mapped.json";
 
+// import the chatbot
+import Chatbot from "./Chatbot";
+
 // ─── Color palette per department ───────────────────────────────────────────
 const DEPT_COLOR_CACHE = {};
 function getDeptBase(subject) {
@@ -373,6 +376,8 @@ export default function App() {
         {selectedCourse && (
           <CourseModal course={selectedCourse} onClose={() => setSelectedCourse(null)} />
         )}
+
+        <Chatbot courses={courses} />
       </div>
     </>
   );
