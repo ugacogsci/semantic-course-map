@@ -18,6 +18,7 @@ APP_CACHE = {
 ALLOWED_MAPS =[
     'database_mapped_umap_15', 
     'database_mapped_umap_40', 
+    'database_mapped_umap_100',
     'database_mapped_pacmap_o', 
     'database_mapped_trimap_500_100_100', 
     'database_mapped_trimap_50_20_10', 

@@ -122,7 +122,9 @@ export default function App() {
   // [CHANGE: ENDPOINT FIX] - Adjusted endpoint to point to /api/all_courses to align with backend cache architecture.
   useEffect(() => {
     setLoading(true);
-    fetch(`http://127.0.0.1:5000/api/all_courses?map_type=${mapType}`)
+    //[CHANGE: SERVERLESS DEPLOYMENT] - Bypassing Flask and fetching static JSON directly from the public folder.
+    // import.meta.env.BASE_URL ensures the path works perfectly on GitHub Pages
+    fetch(`${import.meta.env.BASE_URL}data/${mapType}.json`)
       .then(res => res.json())
       .then(data => {
         const mappedData = data.filter(c => c.x !== undefined && c.y !== undefined).map(c => ({
@@ -357,6 +359,7 @@ export default function App() {
           >
             <option value="database_mapped_umap_15">UMAP (n=15)</option>
             <option value="database_mapped_umap_40">UMAP (n=40)</option>
+            <option value="database_mapped_umap_100">UMAP (n=100)</option>
             <option value="database_mapped_pacmap_o">PaCMAP</option>
             <option value="database_mapped_trimap_500_100_100">TriMAP (500/100/100)</option>
             <option value="database_mapped_trimap_50_20_10">TriMAP (50/20/10)</option>
