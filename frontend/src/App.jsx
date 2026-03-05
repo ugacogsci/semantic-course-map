@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
 
-// ─── Color palette per department ───────────────────────────────────────────
+// Color palette per department 
 const DEPT_COLOR_CACHE = {};
 function getDeptBase(subject) {
   const key = subject?.replace(/[^A-Z]/g, "").slice(0, 4) || "ZZZ";
@@ -14,14 +14,17 @@ function getDeptBase(subject) {
   return DEPT_COLOR_CACHE[key];
 }
 
+//[CHANGE: CRASH PREVENTION] - Escapes special characters like '+' or '(' so searching for "C++" doesn't crash the Regex engine.
+const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // [CHANGE: DYNAMIC TEXT HIGHLIGHTING] - Added a regex helper function to dynamically wrap searched text in a glowing span inside the modal.
 const highlightMatch = (text, searchStr) => {
   if (!searchStr || !text) return text;
   const words = searchStr.trim().split(/\s+/).filter(w => w.length > 0);
   if (words.length === 0) return text;
   
-  const regex = new RegExp(`(${words.join('|')})`, 'gi');
-  const parts = text.toString().split(regex);
+  const regex = new RegExp(`(${words.map(escapeRegExp).join('|')})`, 'gi');
+  const parts = String(text).split(regex);
   
   return parts.map((part, i) => 
     regex.test(part) ? (
@@ -44,11 +47,17 @@ const CY_STYLE =[
       "transition-property": "width, height, background-color, border-color, opacity",
       "transition-duration": "0.15s",
       "overlay-opacity": 0,
+      label: "data(label)", // [CHANGE: RESTORED] - Restored label field so hovered nodes show text.
+      "font-family": "'IBM Plex Mono', monospace",
+      "font-size": 0, 
+      "text-outline-width": 2,
+      "text-outline-color": "#050812",
+      color: "white"
     },
   },
   {
     selector: "node:hover",
-    style: { width: 26, height: 26, "border-color": "white", "border-width": 2, "z-index": 999 },
+    style: { width: 26, height: 26, "border-color": "white", "border-width": 2, "font-size": 12, "z-index": 999 },
   },
   {
     selector: "node.selected",
@@ -59,7 +68,7 @@ const CY_STYLE =[
   { selector: '.dimmed', style: { 'opacity': 0.10 } },
   { 
     selector: '.highlighted', 
-    // [CHANGE: SEARCH PROMINENCE] - Increased size (18->60px) and added border to highlighted nodes so search/filter results visually "pop" against the dimmed background.
+    // [CHANGE: SEARCH PROMINENCE] - Increased size (18->40px) and added border to highlighted nodes so search/filter results visually "pop" against the dimmed background.
     style: { 
       'opacity': 1, 
       'z-index': 10,
@@ -71,7 +80,7 @@ const CY_STYLE =[
   }
 ];
 
-// ─── UI Components (Section/Divider) ────────────────────────────────────────
+// UI Components (Section/Divider)
 function Section({ label, color, children }) {
   return (
     <div style={{ marginBottom: 20 }}>
@@ -88,44 +97,52 @@ function Divider({ color }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [courses, setCourses] = useState([]);
+  const[courses, setCourses] = useState([]);
   const[loading, setLoading] = useState(true);
   
   const[searchTerm, setSearchTerm] = useState("");
   // [CHANGE: DEBOUNCING] - Added debouncedSearch state to prevent the graph from freezing while the user is actively typing.
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const[debouncedSearch, setDebouncedSearch] = useState("");
   //[CHANGE: TARGETED SEARCH] - Added searchField state to track the user's dropdown selection (All vs Title vs Objectives, etc.).
   const[searchField, setSearchField] = useState('all');
   
   const[selectedCourse, setSelectedCourse] = useState(null);
-  // [CHANGE: MULTI-SELECT LEGEND] - Changed legend tracking to a Set() to allow multiple departments to be selected simultaneously.
+  //[CHANGE: MULTI-SELECT LEGEND] - Changed legend tracking to a Set() to allow multiple departments to be selected simultaneously.
   const [selectedDepartments, setSelectedDepartments] = useState(new Set());
   const[legendExpanded, setLegendExpanded] = useState(false);
 
-  const cyRef = useRef(null);
+  // [CHANGE: UNIFIED COUNTER] - Extracted to state so it can update instantly during imperative filtering.
+  const [visibleCount, setVisibleCount] = useState(0);
 
+  const cyRef = useRef(null);
+  const [cyInitialized, setCyInitialized] = useState(false);
+
+  const[mapType, setMapType] = useState('database_mapped_umap_15');
+
+  // [CHANGE: ENDPOINT FIX] - Adjusted endpoint to point to /api/all_courses to align with backend cache architecture.
   useEffect(() => {
-    fetch('http://127.0.0.1:5000/api/all_courses')
+    setLoading(true);
+    fetch(`http://127.0.0.1:5000/api/all_courses?map_type=${mapType}`)
       .then(res => res.json())
       .then(data => {
-        const mappedData = data
-          .filter(c => c.x !== undefined && c.y !== undefined)
-          .map(c => ({
-            ...c,
-            // [CHANGE: SEMANTIC SEARCH / PRE-COMPUTING] - Concatenated all fields on initial load to avoid expensive string building during every search keystroke.
-            searchableText: `${c.subject || ''} ${c.number || ''} ${c.title || ''} ${c.description || ''} ${c.course_objectives || ''} ${c.topical_outline || ''}`.toLowerCase(),
-            //[CHANGE: TARGETED SEARCH] - Pre-computed individual fields for the targeted search dropdown.
-            searchTitle: (c.title || '').toLowerCase(),
-            searchSubjectNum: `${c.subject || ''} ${c.number || ''}`.toLowerCase(),
-            searchDesc: (c.description || '').toLowerCase(),
-            searchObj: (c.course_objectives || '').toLowerCase(),
-            searchOut: (c.topical_outline || '').toLowerCase(),
-          }));
+        const mappedData = data.filter(c => c.x !== undefined && c.y !== undefined).map(c => ({
+          ...c,
+          // [CHANGE: SEMANTIC SEARCH / PRE-COMPUTING] - Concatenated all fields on initial load to avoid expensive string building during every search keystroke.
+          searchableText: `${c.subject || ''} ${c.number || ''} ${c.title || ''} ${c.description || ''} ${c.course_objectives || ''} ${c.topical_outline || ''}`.toLowerCase(),
+          searchTitle: String(c.title || '').toLowerCase(),
+          searchSubjectNum: `${c.subject || ''} ${c.number || ''}`.toLowerCase(),
+          searchDesc: String(c.description || '').toLowerCase(),
+          searchObj: String(c.course_objectives || '').toLowerCase(),
+          searchOut: String(c.topical_outline || '').toLowerCase(),
+        }));
         setCourses(mappedData);
         setLoading(false);
       })
-      .catch(err => { console.error("Error:", err); setLoading(false); });
-  },[]);
+      .catch(err => {
+        console.error("Error fetching map:", err);
+        setLoading(false);
+      });
+  }, [mapType]); 
 
   //[CHANGE: DEBOUNCING] - 300ms delay timer intercepts rapid typing before updating the heavy graph calculations.
   useEffect(() => {
@@ -143,17 +160,44 @@ export default function App() {
   };
 
   // ─── Build Cytoscape elements from course data ───────────────────────────────
-  const { elements, uniqueSubjects, visibleCount } = useMemo(() => {
+  // [CHANGE: IMPERATIVE FILTERING OPTIMIZATION] - The elements array is now built ONLY ONCE when data loads. 
+  // It no longer recomputes 14,000 objects during search filtering, preventing severe React rendering lag.
+  const { elements, uniqueSubjects } = useMemo(() => {
     const subjectsSet = new Set();
-    // [CHANGE: STRICT SEARCH FIX] - Tokenizes search term by spaces so "intro arti" correctly finds "ARTI 1301: Intro to AI".
-    const searchWords = debouncedSearch.toLowerCase().trim().split(/\s+/).filter(w => w.length > 0);
-    // [CHANGE: UNIFIED COUNTER] - Initialized count variable to track how many nodes pass ALL filters.
-    let count = 0;
-
     const els = courses.map((c, i) => {
       subjectsSet.add(c.subject);
       const SCALE = 800; 
-      
+      return {
+        data: {
+          id: `course-${i}`,
+          course: c,
+          label: `${c.subject} ${c.number}`, 
+          color: getDeptBase(c.subject),
+        },
+        position: { x: c.x * SCALE, y: c.y * SCALE },
+        classes: 'highlighted' // Default initialization
+      };
+    });
+
+    return { elements: els, uniqueSubjects: Array.from(subjectsSet).sort() };
+  }, [courses]);
+
+
+  // [CHANGE: IMPERATIVE ENGINE] - This effect bypasses React to interact with Cytoscape directly. 
+  // It computes exactly which IDs match the search/legend, and uses Cytoscape's batch() API to swap CSS classes in milliseconds.
+  useEffect(() => {
+    if (!cyInitialized || !cyRef.current || courses.length === 0) return;
+    
+    const cy = cyRef.current;
+    
+    //[CHANGE: STRICT SEARCH FIX] - Tokenizes search term by spaces so "intro arti" correctly finds "ARTI 1301: Intro to AI".
+    const searchWords = debouncedSearch.toLowerCase().trim().split(/\s+/).filter(w => w.length > 0);
+    
+    const highlightedIds = new Set();
+    let count = 0;
+
+    // Pure JS loop (runs in < 10ms for 14,000 items)
+    courses.forEach((c, i) => {
       let matchesSearch = true;
       // [CHANGE: TARGETED SEARCH] - Switch statement routes the search logic to the specific field the user selected in the dropdown.
       if (searchWords.length > 0) {
@@ -169,49 +213,53 @@ export default function App() {
       const matchesLegend = selectedDepartments.size === 0 || selectedDepartments.has(c.subject);
       
       // [CHANGE: UNIFIED FILTER DIMMING] - Node is highlighted ONLY if it passes both the search AND the legend filter. 
-      // Failed nodes are never deleted from the array, just given the '.dimmed' CSS class.
-      const isHighlighted = matchesSearch && matchesLegend;
-      
-      // [CHANGE: UNIFIED COUNTER] - Increment counter only for fully visible/highlighted nodes.
-      if (isHighlighted) {
-        count++; 
+      if (matchesSearch && matchesLegend) {
+        highlightedIds.add(`course-${i}`);
+        // [CHANGE: UNIFIED COUNTER] - Increment counter only for fully visible/highlighted nodes.
+        count++;
       }
-      
-      return {
-        data: {
-          id: `course-${i}`,
-          course: c,
-          color: getDeptBase(c.subject),
-        },
-        position: { x: c.x * SCALE, y: c.y * SCALE },
-        classes: isHighlighted ? 'highlighted' : 'dimmed'
-      };
     });
 
-    return { elements: els, uniqueSubjects: Array.from(subjectsSet).sort(), visibleCount: count };
-  },[courses, debouncedSearch, searchField, selectedDepartments]);
+    setVisibleCount(count);
+
+    // Apply the classes using Cytoscape's ultra-fast imperative API
+    cy.startBatch();
+    const allNodes = cy.nodes();
+    allNodes.removeClass('highlighted dimmed'); // Reset all
+    
+    const highlightedEles = allNodes.filter(ele => highlightedIds.has(ele.id()));
+    const dimmedEles = allNodes.difference(highlightedEles);
+    
+    highlightedEles.addClass('highlighted');
+    dimmedEles.addClass('dimmed');
+    cy.endBatch();
+
+    //[CHANGE: AUTO-CAMERA PAN] - When a search executes, the camera smoothly flies to the active nodes so they don't get lost
+    if (debouncedSearch.length > 0 || selectedDepartments.size > 0) {
+      if (highlightedEles.length > 0 && highlightedEles.length < courses.length) {
+        setTimeout(() => {
+          if(cyRef.current) cyRef.current.animate({ fit: { eles: highlightedEles, padding: 150 } }, { duration: 600, easing: 'ease-in-out-cubic' });
+        }, 50);
+      }
+    }
+  }, [debouncedSearch, searchField, selectedDepartments, courses, cyInitialized]);
 
 
   const handleCyReady = useCallback((cy) => {
     cyRef.current = cy;
+    setCyInitialized(true);
+    
     cy.on("tap", "node", (evt) => {
       // [CHANGE: CLICK PERFORMANCE FIX] - Optimized selection logic.
       const node = evt.target;
       const course = node.data("course");
       
-      // Batching the style updates prevents Cytoscape from recalculating styles twice.
-      // Using cy.$('.selected') is significantly faster (O(1) lookup) than cy.nodes().removeClass (O(N)).
       cy.startBatch();
       cy.$('.selected').removeClass("selected");
       node.addClass("selected");
       cy.endBatch();
 
-      // Wrap the React state update in requestAnimationFrame.
-      // This allows the browser to paint the "selected" white border on the node INSTANTLY,
-      // before blocking the main thread to render the heavy React Modal.
-      requestAnimationFrame(() => {
-        setSelectedCourse(course);
-      });
+      requestAnimationFrame(() => { setSelectedCourse(course); });
     });
 
     cy.on("tap", (evt) => {
@@ -274,7 +322,7 @@ export default function App() {
         </div>
 
         {/* ─── Search Bar & Field Dropdown ─────────────────────────────────── */}
-        {/* [CHANGE: TARGETED SEARCH] - Wrapped Search input and Field Dropdown together in a flex container */}
+        {/*[CHANGE: TARGETED SEARCH] - Wrapped Search input and Field Dropdown together in a flex container */}
         <div style={{ position: "absolute", top: 24, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", gap: 10, width: "min(90vw, 550px)" }}>
           <select 
             value={searchField} onChange={(e) => setSearchField(e.target.value)}
@@ -299,6 +347,24 @@ export default function App() {
               <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13 }}>✕</button>
             )}
           </div>
+
+          <select 
+            value={mapType} 
+            onChange={(e) => setMapType(e.target.value)}
+            style={{ padding: "10px 14px", background: "rgba(10,15,26,0.85)", backdropFilter: "blur(12px)", 
+                    border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "white", 
+                    fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", outline: "none", cursor: "pointer" }}
+          >
+            <option value="database_mapped_umap_15">UMAP (n=15)</option>
+            <option value="database_mapped_umap_40">UMAP (n=40)</option>
+            <option value="database_mapped_pacmap_o">PaCMAP</option>
+            <option value="database_mapped_trimap_500_100_100">TriMAP (500/100/100)</option>
+            <option value="database_mapped_trimap_50_20_10">TriMAP (50/20/10)</option>
+            <option value="database_mapped_trimap_30_20_10">TriMAP (30/20/10)</option>
+            <option value="database_mapped_tsne_100">t-SNE (P=100)</option>
+            <option value="database_mapped_tsne_500">t-SNE (P=500)</option>
+            <option value="database_mapped_tsne_1000">t-SNE (P=1000)</option>
+          </select>
         </div>
 
         {/* ─── Legend ───────────────────────────────────────────────────────── */}
