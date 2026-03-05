@@ -379,7 +379,8 @@ export default function App() {
         {/* ─── PRE-LAUNCH LANDING PAGE ─── */}
         {!hasLaunched ? (
           <>
-            <div style={{ position: "absolute", top: 0, left: 0, padding: "24px 32px", zIndex: 10 }}>
+            <div style={{ position: "absolute", top: 0, left: 0, padding: "24px 32px", zIndex: 10, display: "flex", alignItems: "center", gap: "12px" }}>
+              <img src={`${import.meta.env.BASE_URL}cogscilogo.png`} alt="Logo" style={{ height: 40 }} />
               <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 28, fontWeight: 400, color: theme.text, letterSpacing: "0.01em", margin: 0 }}>
                 Semantic Course Map
               </h1>
@@ -435,7 +436,9 @@ export default function App() {
             <div style={{
               position: "absolute", top: 0, left: "140px", right: 0, zIndex: 10,
               padding: "18px 28px", background: theme.headerGradient, pointerEvents: "none",
+              display: "flex", alignItems: "center", gap: "12px"
             }}>
+              <img src={`${import.meta.env.BASE_URL}cogscilogo.png`} alt="Logo" style={{ height: 36, pointerEvents: "auto" }} />
               <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 24, fontWeight: 400, color: theme.text, letterSpacing: "0.01em", margin: 0 }}>
                 {landingUni} Semantic Course Map
               </h1>
