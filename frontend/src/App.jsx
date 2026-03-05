@@ -1,6 +1,22 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
 
+// [CHANGE: CHATBOT INTEGRATION] - Imported the RAG chatbot component.
+import Chatbot from "./Chatbot";
+
+// Color palette per department 
+const DEPT_COLOR_CACHE = {};
+function getDeptBase(subject) {
+  const key = subject?.replace(/[^A-Z]/g, "").slice(0, 4) || "ZZZ";
+  if (!DEPT_COLOR_CACHE[key]) {
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
+    const hue = Math.abs(hash) % 360;
+    DEPT_COLOR_CACHE[key] = `hsl(${hue}, 70%, 60%)`;
+  }
+  return DEPT_COLOR_CACHE[key];
+}
+
 // [CHANGE: THEME SYSTEM] - Centralized color variables to support dynamic light/dark mode switching.
 const THEMES = {
   dark: {
@@ -26,7 +42,9 @@ const THEMES = {
     landingButtonBg: "white",
     landingButtonText: "#050812",
     landingButtonHover: "#e0e0e0",
-    linkColor: "#8aa8f8"
+    linkColor: "#8aa8f8",
+    searchIcon: "rgba(255,255,255,0.3)",
+    buttonHover: "rgba(255,255,255,0.1)"
   },
   light: {
     bg: "#f4f6f8",
@@ -51,27 +69,16 @@ const THEMES = {
     landingButtonBg: "#050812",
     landingButtonText: "white",
     landingButtonHover: "#2a2f3a",
-    linkColor: "#0055cc"
+    linkColor: "#0055cc",
+    searchIcon: "rgba(0,0,0,0.4)",
+    buttonHover: "rgba(0,0,0,0.05)"
   }
 };
-
-// Color palette per department
-const DEPT_COLOR_CACHE = {};
-function getDeptBase(subject) {
-  const key = subject?.replace(/[^A-Z]/g, "").slice(0, 4) || "ZZZ";
-  if (!DEPT_COLOR_CACHE[key]) {
-    let hash = 0;
-    for (let i = 0; i < key.length; i++) hash = key.charCodeAt(i) + ((hash << 5) - hash);
-    const hue = Math.abs(hash) % 360;
-    DEPT_COLOR_CACHE[key] = `hsl(${hue}, 70%, 60%)`;
-  }
-  return DEPT_COLOR_CACHE[key];
-}
 
 //[CHANGE: CRASH PREVENTION] - Escapes special characters like '+' or '(' so searching for "C++" doesn't crash the Regex engine.
 const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-//[CHANGE: DYNAMIC TEXT HIGHLIGHTING] - Added a regex helper function to dynamically wrap searched text in a glowing span inside the modal.
+// [CHANGE: DYNAMIC TEXT HIGHLIGHTING] - Added a regex helper function to dynamically wrap searched text in a glowing span inside the modal.
 const highlightMatch = (text, searchStr, theme) => {
   if (!searchStr || !text) return text;
   const words = searchStr.trim().split(/\s+/).filter(w => w.length > 0);
@@ -123,7 +130,7 @@ const getCyStyle = (theme) =>[
   { selector: '.dimmed', style: { 'opacity': 0.10 } },
   { 
     selector: '.highlighted', 
-    //[CHANGE: SEARCH PROMINENCE] - Increased size (18->40px) and added border to highlighted nodes so search/filter results visually "pop" against the dimmed background.
+    // [CHANGE: SEARCH PROMINENCE] - Increased size (18->40px) and added border to highlighted nodes so search/filter results visually "pop" against the dimmed background.
     style: { 
       'opacity': 1, 
       'z-index': 10,
@@ -186,7 +193,8 @@ export default function App() {
   // [CHANGE: SERVERLESS DEPLOYMENT] - Bypassing Flask API and fetching static JSON directly from the GitHub Pages public folder. 
   useEffect(() => {
     setLoading(true);
-    fetch(`${import.meta.env.BASE_URL}data/${mapType}.json`)
+    // [CHANGE: ENDPOINT FIX] - Adjusted endpoint to point to /api/all_courses to align with backend cache architecture.
+    fetch(`http://127.0.0.1:5000/api/all_courses?map_type=${mapType}`)
       .then(res => res.json())
       .then(data => {
         const mappedData = data.filter(c => c.x !== undefined && c.y !== undefined).map(c => ({
@@ -578,6 +586,11 @@ export default function App() {
                 </div>
               );
             })()}
+
+            {/* [CHANGE: CHATBOT INTEGRATION] - Added Michelle's Chatbot component here. 
+                Pass the `courses` data so the RAG system can function. */}
+            <Chatbot courses={courses} />
+
           </>
         )}
 
