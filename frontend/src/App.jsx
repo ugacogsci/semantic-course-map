@@ -52,11 +52,23 @@ const CY_STYLE =[
   },
   {
     selector: "node.selected",
-    style: { width: 28, height: 28, "border-color": "white", "border-width": 2.5, "background-color": "white", "z-index": 1000 },
+    // [CHANGE: VISUAL FEEDBACK] - Increased selected node size (28px -> 60px) and border width so the active course clearly stands out against the cluster.
+    style: { width: 60, height: 60, "border-color": "white", "border-width": 8, "background-color": "white", "z-index": 1000 },
   },
   //[CHANGE: DIMMED OPACITY] - Increased dimmed opacity from 0.05 to 0.15 so the background nodes remain slightly visible as a "galaxy" context.
-  { selector: '.dimmed', style: { 'opacity': 0.15 } },
-  { selector: '.highlighted', style: { 'opacity': 1, 'z-index': 10 } }
+  { selector: '.dimmed', style: { 'opacity': 0.10 } },
+  { 
+    selector: '.highlighted', 
+    // [CHANGE: SEARCH PROMINENCE] - Increased size (18->60px) and added border to highlighted nodes so search/filter results visually "pop" against the dimmed background.
+    style: { 
+      'opacity': 1, 
+      'z-index': 10,
+      'width': 40,
+      'height': 40,
+      'border-color': 'rgba(255,255,255,0.6)',
+      'border-width': 2
+    } 
+  }
 ];
 
 // ─── UI Components (Section/Divider) ────────────────────────────────────────
@@ -183,14 +195,30 @@ export default function App() {
   const handleCyReady = useCallback((cy) => {
     cyRef.current = cy;
     cy.on("tap", "node", (evt) => {
-      const course = evt.target.data("course");
-      cy.nodes().removeClass("selected");
-      evt.target.addClass("selected");
-      setSelectedCourse(course);
+      // [CHANGE: CLICK PERFORMANCE FIX] - Optimized selection logic.
+      const node = evt.target;
+      const course = node.data("course");
+      
+      // Batching the style updates prevents Cytoscape from recalculating styles twice.
+      // Using cy.$('.selected') is significantly faster (O(1) lookup) than cy.nodes().removeClass (O(N)).
+      cy.startBatch();
+      cy.$('.selected').removeClass("selected");
+      node.addClass("selected");
+      cy.endBatch();
+
+      // Wrap the React state update in requestAnimationFrame.
+      // This allows the browser to paint the "selected" white border on the node INSTANTLY,
+      // before blocking the main thread to render the heavy React Modal.
+      requestAnimationFrame(() => {
+        setSelectedCourse(course);
+      });
     });
+
     cy.on("tap", (evt) => {
       if (evt.target === cy) {
-        cy.nodes().removeClass("selected");
+        cy.startBatch();
+        cy.$('.selected').removeClass("selected");
+        cy.endBatch();
         setSelectedCourse(null);
       }
     });
