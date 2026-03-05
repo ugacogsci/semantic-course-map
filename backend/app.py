@@ -10,7 +10,7 @@ CORS(app)
 def load_data():
     try:
         print("Loading database.json into memory...")
-        with open('database_mapped_trimap_50_10_10.json', 'r', encoding='utf-8') as f: # Change filename for different datasets
+        with open('database_mapped_trimap_50_20_50.json', 'r', encoding='utf-8') as f: # Change filename for different datasets
             data = json.load(f)
             print(f"Successfully loaded {len(data)} courses")
             return data

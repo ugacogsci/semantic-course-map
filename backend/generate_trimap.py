@@ -30,9 +30,9 @@ def generate_trimap_from_cache():
     
     # We use distance='angular' because semantic vectors operate on Cosine Similarity
     reducer = trimap.TRIMAP(
-        n_inliers=500, # default 12
-        n_outliers=100, # default 4
-        n_random=100, # default 3
+        n_inliers=50, # default 12
+        n_outliers=20, # default 4
+        n_random=50, # default 3
         distance='angular'
     )
     
