@@ -10,7 +10,7 @@ CORS(app)
 def load_data():
     try:
         print("Loading database.json into memory...")
-        with open('database.json', 'r', encoding='utf-8') as f:
+        with open('database_mapped.json', 'r', encoding='utf-8') as f:
             data = json.load(f)
             print(f"Successfully loaded {len(data)} courses")
             return data
@@ -83,6 +83,10 @@ def get_courses():
     
     return jsonify(courses)
 
+@app.route('/api/all_courses', methods=['GET'])
+def get_all_courses():
+    # Sends the entire mapped database to the frontend for the massive graph
+    return jsonify(COURSE_DATA)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
