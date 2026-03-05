@@ -202,7 +202,7 @@ ${courseContext}`;
               }}>✦</div>
               <div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "white", fontWeight: 500 }}>
-                  Orion - Course Assistant
+                  Orion - Course Assistant 
                 </div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: "rgba(255,255,255,0.35)" }}>
                   powered by Claude
