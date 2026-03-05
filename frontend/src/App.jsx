@@ -228,7 +228,7 @@ export default function App() {
         
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'white', fontFamily: "'IBM Plex Mono', monospace" }}>
-            Loading Cognitive Engine (14,000+ courses)...
+            Loading (14,000+ courses)...
           </div>
         ) : memoizedGraph}
 
