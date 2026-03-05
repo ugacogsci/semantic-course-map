@@ -92,7 +92,7 @@ export default function Chatbot({ courses }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Hi! I'm your UGA course advisor. Ask me anything — like \"What should I take if I love psychology and AI?\" or \"What's the difference between CSCI 4360 and STAT 4230?\"",
+      content: "Ask me anything — like \"What should I take if I love psychology and AI?\" or \"What's the difference between CSCI 4360 and STAT 4230?\"",
     }
   ]);
   const [input, setInput] = useState("");
@@ -119,10 +119,13 @@ export default function Chatbot({ courses }) {
         ? `Here are the most relevant UGA courses I found:\n\n${formatCoursesForPrompt(relevant)}`
         : "No specific courses matched, but answer generally about UGA's curriculum.";
 
-      const systemPrompt = `You are a helpful UGA course advisor embedded in the UGA Semantic Course Map. 
-You help students explore courses, get recommendations, and understand course content.
-Be friendly, concise, and specific. When recommending courses always mention the course code and title.
-Only recommend courses that appear in the context provided.
+      const systemPrompt = `You are a helpful exploration assistant embedded in the UGA Semantic Course Map. You help students explore University of Georgia (UGA) courses.
+      Use the provided course information to give accurate, helpful recommendations. 
+      If the user’s question or interests are unclear, ask a clarifying question before giving recommendations. 
+      If information is missing or not included in the provided data, state this clearly and do not make up details.  
+      You help students explore courses, get recommendations, and understand course content.
+      Be friendly, concise, and specific. When recommending courses always mention the course code and title.
+      Only recommend courses that appear in the context provided.
 
 ${courseContext}`;
 
@@ -199,7 +202,7 @@ ${courseContext}`;
               }}>✦</div>
               <div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: "white", fontWeight: 500 }}>
-                  UGA Course Advisor
+                  Orion - Course Assistant
                 </div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: "rgba(255,255,255,0.35)" }}>
                   powered by Claude
