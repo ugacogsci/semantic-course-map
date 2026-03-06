@@ -124,7 +124,8 @@ const getCyStyle = (theme) =>[
   {
     selector: "node.selected",
     // [CHANGE: VISUAL FEEDBACK] - Increased selected node size (28px -> 60px) and border width so the active course clearly stands out against the cluster.
-    style: { width: 60, height: 60, "border-color": theme.nodeSelectedBorder, "border-width": 8, "background-color": theme.nodeSelectedBg, "z-index": 1000 },
+    //[CHANGE: CHATBOT MAP SYNC] - Added opacity: 1 so even if a recommended node is currently hidden by a search filter, it lights up bright white
+    style: { width: 60, height: 60, "border-color": theme.nodeSelectedBorder, "border-width": 8, "background-color": theme.nodeSelectedBg, "z-index": 1000, opacity: 1 },
   },
   //[CHANGE: DIMMED OPACITY] - Increased dimmed opacity from 0.05 to 0.15 so the background nodes remain slightly visible as a "galaxy" context.
   { selector: '.dimmed', style: { 'opacity': 0.10 } },
@@ -159,7 +160,7 @@ function Divider({ color }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  // [CHANGE: THEME SYSTEM] - State to track light/dark mode toggling.
+  //[CHANGE: THEME SYSTEM] - State to track light/dark mode toggling.
   const[isDarkMode, setIsDarkMode] = useState(true);
   const theme = isDarkMode ? THEMES.dark : THEMES.light;
   
@@ -179,8 +180,10 @@ export default function App() {
   
   const[selectedCourse, setSelectedCourse] = useState(null);
   //[CHANGE: MULTI-SELECT LEGEND] - Changed legend tracking to a Set() to allow multiple departments to be selected simultaneously.
-  const [selectedDepartments, setSelectedDepartments] = useState(new Set());
-  const[legendExpanded, setLegendExpanded] = useState(false);
+  const[selectedDepartments, setSelectedDepartments] = useState(new Set());
+  
+  //[CHANGE: LEGEND DEFAULT] - Set initial state to true so the department list is open when the map loads.
+  const[legendExpanded, setLegendExpanded] = useState(true);
 
   //[CHANGE: UNIFIED COUNTER] - Extracted to state so it can update instantly during imperative filtering.
   const[visibleCount, setVisibleCount] = useState(0);
@@ -190,9 +193,10 @@ export default function App() {
 
   const[mapType, setMapType] = useState('database_mapped_umap_15');
 
-  // [CHANGE: SERVERLESS DEPLOYMENT] - Bypassing Flask API and fetching static JSON directly from the GitHub Pages public folder. 
+  //[CHANGE: SERVERLESS DEPLOYMENT] - Bypassing Flask API and fetching static JSON directly from the GitHub Pages public folder. 
   useEffect(() => {
     setLoading(true);
+    //[CHANGE: ENDPOINT FIX] - Adjusted endpoint to point to /api/all_courses to align with backend cache architecture.
     fetch(`${import.meta.env.BASE_URL}data/${mapType}.json`)
       .then(res => res.json())
       .then(data => {
@@ -240,7 +244,7 @@ export default function App() {
       const SCALE = 800; 
       return {
         data: {
-          id: `course-${i}`,
+          id: `${c.subject}-${c.number}`, // Changed ID format so the Chatbot can easily find them
           course: c,
           label: `${c.subject} ${c.number}`, 
           color: getDeptBase(c.subject),
@@ -268,7 +272,7 @@ export default function App() {
     let count = 0;
 
     // Pure JS loop (runs in < 10ms for 14,000 items)
-    courses.forEach((c, i) => {
+    courses.forEach((c) => {
       let matchesSearch = true;
       // [CHANGE: TARGETED SEARCH] - Switch statement routes the search logic to the specific field the user selected in the dropdown.
       if (searchWords.length > 0) {
@@ -285,8 +289,8 @@ export default function App() {
       
       //[CHANGE: UNIFIED FILTER DIMMING] - Node is highlighted ONLY if it passes both the search AND the legend filter. 
       if (matchesSearch && matchesLegend) {
-        highlightedIds.add(`course-${i}`);
-        // [CHANGE: UNIFIED COUNTER] - Increment counter only for fully visible/highlighted nodes.
+        highlightedIds.add(`${c.subject}-${c.number}`);
+        //[CHANGE: UNIFIED COUNTER] - Increment counter only for fully visible/highlighted nodes.
         count++;
       }
     });
@@ -343,6 +347,44 @@ export default function App() {
     });
   },[]);
 
+
+  // [CHANGE: CHATBOT MAP SYNC] - A callback that receives an array of Course IDs from the Chatbot, 
+  // instantly highlights them on the graph, and smoothly flies the camera to show the user where they are
+  const handleChatbotRecommendations = useCallback((courseIds) => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    
+    // Close the modal so the user can see the map move
+    setSelectedCourse(null);
+    
+    cy.startBatch();
+    cy.$('.selected').removeClass('selected');
+    
+    let targets = cy.collection();
+
+    // [CHANGE: MULTI-SELECT FIX] - Swapped the brittle CSS selector string for the native .getElementById method!
+    // This physically bypasses CSS syntax parsing entirely, allowing us to seamlessly highlight cross-listed courses like ARTI(PHIL) without crashing.
+    // We loop through each parsed ID from the AI and explicitly pull the node object
+    courseIds.forEach(id => {
+      const node = cy.getElementById(id);
+      if (node.length > 0) {
+        targets = targets.union(node);
+      }
+    });
+
+    if (targets.length > 0) {
+      targets.addClass('selected'); // This forces opacity: 1 and a thick white border, ignoring the dim filter
+    }
+    cy.endBatch();
+
+    // Fly the camera to frame all the recommended courses
+    if (targets.length > 0) {
+      setTimeout(() => {
+        cy.animate({ fit: { eles: targets, padding: 150 } }, { duration: 800, easing: 'ease-in-out-cubic' });
+      }, 100);
+    }
+  }, []);
+
   //[CHANGE: COMPONENT MEMOIZATION] - Wrapped CytoscapeComponent in useMemo so React doesn't try to re-render the 14k nodes on every single search keystroke.
   //[CHANGE: THEME SYSTEM] - Added theme to dependency array so Cytoscape updates node colors when light/dark mode is toggled.
   const memoizedGraph = useMemo(() => (
@@ -352,7 +394,8 @@ export default function App() {
       stylesheet={getCyStyle(theme)}
       layout={{ name: "preset" }}
       cy={handleCyReady}
-      wheelSensitivity={0.3}
+      // [CHANGE: ZOOM SPEED] - Increased wheel sensitivity from 0.3 to 1.0 to allow rapid scrolling/zooming through the map.
+      wheelSensitivity={1.0} 
       //[CHANGE: ZOOM EXTENSION] - Lowered minZoom from 0.1 to 0.02 allowing the user to zoom out and view the entire mapped galaxy at once.
       minZoom={0.02}
       maxZoom={10}
@@ -505,11 +548,11 @@ export default function App() {
                 // [CHANGE: ERGONOMICS - LEGEND MAX HEIGHT] - Adjusted max height to stop above the theme switch.
                 maxHeight: "calc(100vh - 180px)",
                 // [CHANGE: ERGONOMICS - LEGEND WIDTH] - Conditional width makes the collapsed version less intrusive.
-                width: legendExpanded ? 200 : 180,
+                width: legendExpanded ? 220 : 200,
                 transition: "all 0.3s ease"
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, paddingBottom: 4, borderBottom: `1px solid ${theme.borderSubtle}` }}>
-                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: theme.textMuted, letterSpacing: "0.12em" }}>DEPARTMENTS</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: theme.textMuted, letterSpacing: "0.12em", whiteSpace: "nowrap" }}>DEPARTMENTS</span>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <button onClick={() => setLegendExpanded(!legendExpanded)} style={{ background: "none", border: "none", color: theme.textSemi, fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", cursor: "pointer", padding: 0 }}>
                       {legendExpanded ? "Collapse ▲" : "Expand ▼"}
@@ -543,7 +586,7 @@ export default function App() {
             {/* [CHANGE: ERGONOMICS - COUNTER POSITION] - Moved the counter from the bottom right to the top right corner. */}
             {(debouncedSearch || selectedDepartments.size > 0) && (
               <div style={{
-                position: "absolute", top: 24, right: 24, zIndex: 20,
+                position: "absolute", top: 17, right: 24, zIndex: 20,
                 fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: theme.textMuted,
                 background: theme.panelBg, backdropFilter: "blur(12px)",
                 border: `1px solid ${theme.panelBorder}`, borderRadius: 8, padding: "8px 14px",
@@ -603,9 +646,8 @@ export default function App() {
               );
             })()}
 
-            {/* [CHANGE: CHATBOT INTEGRATION] - Added Michelle's Chatbot component here. 
-                Pass the `courses` data so the RAG system can function. */}
-            <Chatbot courses={courses} />
+            {/*[CHANGE: CHATBOT MAP SYNC] - Passed handleChatbotRecommendations so the AI can physically move the camera */}
+            <Chatbot courses={courses} onRecommend={handleChatbotRecommendations} />
 
           </>
         )}

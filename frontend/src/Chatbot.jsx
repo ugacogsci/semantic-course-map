@@ -43,7 +43,7 @@ function formatCoursesForPrompt(courses) {
   ).join("\n\n---\n\n");
 }
 
-// ─── Markdown Parser Helper ───────────────────────────────────────────────────
+// ─── Markdown Parser Helper ───────────────────────────────────────────────────────────
 //[CHANGE: MARKDOWN RENDERING] - Safely converts **bold** text from Claude into actual bold HTML elements
 const renderMarkdown = (text) => {
   if (!text) return null;
@@ -61,7 +61,6 @@ const renderMarkdown = (text) => {
   });
 };
 
-// ─── Message bubble ───────────────────────────────────────────────────────────
 // ─── Message bubble ───────────────────────────────────────────────────────────
 function Message({ msg }) {
   const isUser = msg.role === "user";
@@ -90,7 +89,7 @@ function Message({ msg }) {
         lineHeight: 1.6,
         fontFamily: "'IBM Plex Mono', monospace",
         // pre-wrap ensures that Claude's newlines and bullet points format correctly
-        whiteSpace: "pre-wrap", 
+        whiteSpace: "pre-wrap",
       }}>
         {/*[CHANGE: MARKDOWN RENDERING] - Pass the text through our parser instead of rendering raw text */}
         {renderMarkdown(msg.content)}
@@ -129,9 +128,10 @@ function TypingIndicator() {
 }
 
 // ─── Main Chatbot Component ───────────────────────────────────────────────────
-export default function Chatbot({ courses }) {
+//[CHANGE: CHATBOT MAP SYNC] - Added onRecommend prop to pass selected course IDs back up to the map!
+export default function Chatbot({ courses, onRecommend }) {
   const[open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([
+  const[messages, setMessages] = useState([
     {
       role: "assistant",
       content: "Ask me anything — like \"What should I take if I love psychology and AI?\" or \"What's the difference between CSCI 4360 and STAT 4230?\"",
@@ -172,7 +172,7 @@ export default function Chatbot({ courses }) {
       const systemPrompt = `You are a helpful academic exploration assistant embedded in the UGA Semantic Course Map. You help students explore University of Georgia (UGA) courses.
       Use the provided course information to give accurate, helpful recommendations and explanations. 
       If the user’s question or interests are unclear, ask a clarifying question before giving recommendations. 
-      Be friendly, concise, and specific. When recommending courses always mention the course code and title in bold.
+      Be friendly, concise, and specific. When recommending courses always mention the course code and title in bold (e.g. **CSCI 1301: Intro to Computing**).
       Only recommend courses that appear in the context provided below. Be very concise. Try not to exceed 70 words.
 
       CONTEXT:
@@ -206,6 +206,21 @@ export default function Chatbot({ courses }) {
       } else {
         const reply = data.content?.[0]?.text || "Sorry, I couldn't get a response. Try again!";
         setMessages(prev =>[...prev, { role: "assistant", content: reply }]);
+
+        //[CHANGE: CHATBOT MAP SYNC] - Parse the AI's reply for bolded course codes (e.g., **CSCI 4360**)
+        if (onRecommend) {
+          // [CHANGE: REGEX FIX] - Updated regex to properly capture cross-listed courses (parentheses) and weird numbers (slashes)
+          // Group 1: Any uppercase letter or parenthesis -> [A-Z()]+
+          // Group 2: Starts with digit, followed by digits, letters, or slashes -> [\d][\da-zA-Z/]*
+          const regex = /\*\*([A-Z()]+)\s+([\d][\da-zA-Z/]*)/gi;
+          const matches =[...reply.matchAll(regex)];
+          
+          if (matches.length > 0) {
+            // Format them exactly how our node IDs are formatted ("CSCI-4360")
+            const courseIds = matches.map(m => `${m[1].toUpperCase()}-${m[2].toUpperCase()}`);
+            onRecommend(courseIds); // Pass the IDs back to App.jsx to select them on the map
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -309,6 +324,7 @@ export default function Chatbot({ courses }) {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && sendMessage()}
               placeholder="Ask about courses…"
+              autoComplete="off"
               style={{
                 flex: 1, background: "rgba(255,255,255,0.05)",
                 border: "1px solid rgba(255,255,255,0.1)",
