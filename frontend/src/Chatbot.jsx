@@ -134,7 +134,7 @@ ${courseContext}`;
   method: "POST",
   headers: { 
     "Content-Type": "application/json",
-    "x-api-key": "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",
+    "x-api-key": "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",
     "anthropic-version": "2023-06-01",
     "anthropic-dangerous-direct-browser-access": "true",
   },
