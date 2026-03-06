@@ -4,7 +4,7 @@ An exploratory, AI-powered spatial visualization of the University of Georgia co
 
 Built by the Cognitive Science Club for The Generative AI Competition 3.0.
 
-![Go to Project](https://ugacogsci.github.io/semantic-course-map/)
+[Go to Project](https://ugacogsci.github.io/semantic-course-map/)
 
 ### Project Overview
 Navigating a university course catalog is typically a highly functional process, but we believe it can be a deeply exploratory and intellectually interesting one. Our goal was to enrich the UGA academic experience by transforming the static Schedule of Classes into an interactive Semantic Course Map. By leveraging Generative AI, vector embedding, and Retrieval-Augmented Generation (RAG), we mapped over 14,000 UGA courses onto a 2D visual canvas. Courses covering semantically similar material naturally cluster together, allowing students to organically explore the curriculum, discover unexpected academic pathways, and visualize the macro-structure of the university.
