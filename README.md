@@ -69,6 +69,7 @@ To use the "Orion" RAG Course Assistant:
   sk-ant-api03-P8JaI&&&&&L7sAybfxwej1j5x&&&&&YBzJNVlMsV1Z-KYAt9jIOR&&&&&V0_GFgWiOXYtVyXiVk3x&&&&&wOMzkRC2dsDZroe0Akj&&&&&lbHog-lyK_KwAA
 - The key is held strictly in your browser's local memory and is never saved to a database.
 
+<br>
 
 ### Tech Stack
 
@@ -81,3 +82,8 @@ LLM Engine: Anthropic Claude 4.5 Haiku API
 Data Scraping: BeautifulSoup4, Requests
 
 DevOps: Conda, GitHub Pages
+
+<br>
+<br>
+
+*Built over a 7-day sprint for the UGA community.*
