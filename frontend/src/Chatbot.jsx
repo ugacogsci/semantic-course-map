@@ -113,7 +113,7 @@ export default function Chatbot({ courses }) {
     if (!text || loading) return;
 
     if (!apiKey) {
-      setMessages(prev =>[...prev, { role: "assistant", content: "⚠️ Please enter your Anthropic API Key in the settings (⚙️) first!" }]);
+      setMessages(prev =>[...prev, { role: "assistant", content: "Please enter your Anthropic API Key in the settings first" }]);
       return;
     }
 
