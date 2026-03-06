@@ -28,7 +28,7 @@ const THEMES = {
     panelBorder: "rgba(255,255,255,0.12)",
     borderSubtle: "rgba(255,255,255,0.08)",
     borderHighlight: "rgba(255,255,255,0.6)",
-    headerGradient: "linear-gradient(to bottom, rgba(5,8,18,0.95) 60%, transparent)",
+    headerGradient: "linear-gradient(to bottom, rgba(1, 4, 11, 0.85) 60%, transparent)",
     modalBg: "#0d1323",
     modalOverlay: "rgba(5,8,18,0.7)",
     highlightBg: "rgba(255, 255, 255, 0.2)",
@@ -55,7 +55,7 @@ const THEMES = {
     panelBorder: "rgba(0,0,0,0.15)",
     borderSubtle: "rgba(0,0,0,0.1)",
     borderHighlight: "rgba(0,0,0,0.6)",
-    headerGradient: "linear-gradient(to bottom, rgba(244,246,248,0.95) 60%, transparent)",
+    headerGradient: "linear-gradient(to bottom, rgba(225, 225, 225, 0.85) 60%, transparent)",
     modalBg: "#ffffff",
     modalOverlay: "rgba(255,255,255,0.7)",
     highlightBg: "rgba(0, 0, 0, 0.15)",
@@ -379,7 +379,8 @@ export default function App() {
         {/* ─── PRE-LAUNCH LANDING PAGE ─── */}
         {!hasLaunched ? (
           <>
-            <div style={{ position: "absolute", top: 0, left: 0, padding: "24px 32px", zIndex: 10 }}>
+            <div style={{ position: "absolute", top: 0, left: 0, padding: "24px 32px", zIndex: 10, display: "flex", alignItems: "center", gap: "12px" }}>
+              <img src={`${import.meta.env.BASE_URL}cogscilogo.png`} alt="Logo" style={{ height: 40 }} />
               <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 28, fontWeight: 400, color: theme.text, letterSpacing: "0.01em", margin: 0 }}>
                 Semantic Course Map
               </h1>
@@ -433,9 +434,11 @@ export default function App() {
 
             {/* Header */}
             <div style={{
-              position: "absolute", top: 0, left: "140px", right: 0, zIndex: 10,
+              position: "absolute", top: 0, left: 0, right: 0, zIndex: 10,
               padding: "18px 28px", background: theme.headerGradient, pointerEvents: "none",
+              display: "flex", alignItems: "center", gap: "12px"
             }}>
+              <img src={`${import.meta.env.BASE_URL}cogscilogo.png`} alt="Logo" style={{ height: 36, pointerEvents: "auto" }} />
               <h1 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 24, fontWeight: 400, color: theme.text, letterSpacing: "0.01em", margin: 0 }}>
                 {landingUni} Semantic Course Map
               </h1>
@@ -445,7 +448,8 @@ export default function App() {
             </div>
 
             {/* Search Bar & Dropdowns */}
-            <div style={{ position: "absolute", top: 24, left: "50%", transform: "translateX(-50%)", zIndex: 20, display: "flex", gap: 10, width: "min(90vw, 550px)" }}>
+            {/* [CHANGE: ERGONOMICS - SEARCH BAR WIDTH] - Increased max-width from 550px to 880px to give the search bar more presence. */}
+            <div style={{ position: "absolute", top: 17, left: "calc(50% + 200px)", transform: "translateX(-50%)", zIndex: 20, display: "flex", gap: 10, width: "min(90vw, 880px)" }}>
               <select 
                 value={searchField} onChange={(e) => setSearchField(e.target.value)}
                 style={{ padding: "10px 14px", background: theme.panelBg, backdropFilter: "blur(12px)", border: `1px solid ${theme.panelBorder}`, borderRadius: 10, color: theme.text, fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", outline: "none", cursor: "pointer", transition: "all 0.3s ease" }}
@@ -494,7 +498,11 @@ export default function App() {
                 position: "absolute", top: 100, left: 24, zIndex: 20, 
                 background: theme.panelBg, backdropFilter: "blur(12px)",
                 border: `1px solid ${theme.panelBorder}`, borderRadius: 10, padding: "12px 16px",
-                display: "flex", flexDirection: "column", gap: 6, maxHeight: "calc(100vh - 140px)",
+                display: "flex", flexDirection: "column", gap: 6, 
+                // [CHANGE: ERGONOMICS - LEGEND MAX HEIGHT] - Adjusted max height to stop above the theme switch.
+                maxHeight: "calc(100vh - 180px)",
+                // [CHANGE: ERGONOMICS - LEGEND WIDTH] - Conditional width makes the collapsed version less intrusive.
+                width: legendExpanded ? 200 : 180,
                 transition: "all 0.3s ease"
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, paddingBottom: 4, borderBottom: `1px solid ${theme.borderSubtle}` }}>
@@ -509,7 +517,11 @@ export default function App() {
                   </div>
                 </div>
                 
-                <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                {/* [CHANGE: ERGONOMICS - LEGEND SCROLL] - The scrollable div is now persistent but its height changes, preserving scroll position. */}
+                <div style={{ 
+                  overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, 
+                  maxHeight: legendExpanded ? '100%' : '0px', transition: 'max-height 0.3s ease-in-out'
+                }}>
                   {(legendExpanded ? uniqueSubjects : uniqueSubjects.slice(0, 10)).map(dept => {
                     const isSelected = selectedDepartments.has(dept);
                     const anySelected = selectedDepartments.size > 0;
@@ -525,9 +537,10 @@ export default function App() {
             )}
 
             {/* Counter */}
+            {/* [CHANGE: ERGONOMICS - COUNTER POSITION] - Moved the counter from the bottom right to the top right corner. */}
             {(debouncedSearch || selectedDepartments.size > 0) && (
               <div style={{
-                position: "absolute", bottom: 24, right: 24, zIndex: 20,
+                position: "absolute", top: 24, right: 24, zIndex: 20,
                 fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: theme.textMuted,
                 background: theme.panelBg, backdropFilter: "blur(12px)",
                 border: `1px solid ${theme.panelBorder}`, borderRadius: 8, padding: "8px 14px",
@@ -588,7 +601,7 @@ export default function App() {
             })()}
 
             {/* [CHANGE: CHATBOT INTEGRATION] - Added Michelle's Chatbot component here. 
-                We pass the `courses` data so the RAG system can function. */}
+                Pass the `courses` data so the RAG system can function. */}
             <Chatbot courses={courses} />
 
           </>

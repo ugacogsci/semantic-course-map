@@ -43,7 +43,7 @@ function Message({ msg }) {
         maxWidth: "80%",
         background: isUser ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.06)",
         border: isUser ? "1px solid rgba(99,102,241,0.4)" : "1px solid rgba(255,255,255,0.08)",
-        borderRadius: isUser ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+        borderRadius: isUser ? "14px 4px 14px 14px" : "4px 14px 14px 14px",
         padding: "10px 14px",
         color: "rgba(255,255,255,0.9)",
         fontSize: 13,
