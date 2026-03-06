@@ -88,7 +88,7 @@ function TypingIndicator() {
 
 // ─── Main Chatbot Component ───────────────────────────────────────────────────
 export default function Chatbot({ courses }) {
-  const [open, setOpen] = useState(false);
+  const[open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -97,6 +97,11 @@ export default function Chatbot({ courses }) {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // NEW: API Key State
+  const [apiKey, setApiKey] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -106,6 +111,11 @@ export default function Chatbot({ courses }) {
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || loading) return;
+
+    if (!apiKey) {
+      setMessages(prev =>[...prev, { role: "assistant", content: "⚠️ Please enter your Anthropic API Key in the settings (⚙️) first!" }]);
+      return;
+    }
 
     const userMsg = { role: "user", content: text };
     setMessages(prev => [...prev, userMsg]);
@@ -130,32 +140,39 @@ export default function Chatbot({ courses }) {
 ${courseContext}`;
 
       const history = messages
-        .filter(m => m.role !== "system")
+        .filter(m => m.role !== "system" && m.content !== "Please enter your Anthropic API Key in the settings first")
         .map(m => ({ role: m.role, content: m.content }));
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
-  method: "POST",
-  headers: { 
-    "Content-Type": "application/json",
-    "x-api-key": "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",
-    "anthropic-version": "2023-06-01",
-    "anthropic-dangerous-direct-browser-access": "true",
-  },
-  body: JSON.stringify({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1000,
-    system: systemPrompt,
-    messages: [...history, { role: "user", content: text }],
-  }),
-});
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-api-key": apiKey, // Use the dynamically provided API key
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514", 
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages:[...history, { role: "user", content: text }],
+        }),
+      });
 
       const data = await response.json();
-      const reply = data.content?.[0]?.text || "Sorry, I couldn't get a response. Try again!";
-      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+      
+      if (data.error) {
+        console.error("API Error:", data.error);
+        setMessages(prev =>[...prev, { role: "assistant", content: `API Error: ${data.error.message}` }]);
+      } else {
+        const reply = data.content?.[0]?.text || "Sorry, I couldn't get a response. Try again!";
+        setMessages(prev =>[...prev, { role: "assistant", content: reply }]);
+      }
     } catch (err) {
-      setMessages(prev => [...prev, {
+      console.error(err);
+      setMessages(prev =>[...prev, {
         role: "assistant",
-        content: "Something went wrong connecting to the AI. Please try again!",
+        content: "Network error connecting to the AI. Check your console.",
       }]);
     } finally {
       setLoading(false);
@@ -209,27 +226,42 @@ ${courseContext}`;
                 </div>
               </div>
             </div>
-            <button onClick={() => setOpen(false)} style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "rgba(255,255,255,0.4)", fontSize: 18, padding: 4,
-            }}>✕</button>
+            
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setShowSettings(!showSettings)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 16, padding: 4 }}>
+                ⚙️
+              </button>
+              <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 18, padding: 4 }}>
+                ✕
+              </button>
+            </div>
           </div>
 
+          {/* API Key Settings Dropdown */}
+          {showSettings && (
+            <div style={{ padding: "12px", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <input 
+                type="password"
+                placeholder="Paste Anthropic API Key (sk-ant-...)"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                style={{
+                  width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 6, padding: "8px", color: "white", fontFamily: "monospace", fontSize: 11, outline: "none"
+                }}
+              />
+            </div>
+          )}
+
           {/* Messages */}
-          <div style={{
-            flex: 1, overflowY: "auto", padding: "16px 14px",
-          }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px" }}>
             {messages.map((msg, i) => <Message key={i} msg={msg} />)}
             {loading && <TypingIndicator />}
             <div ref={bottomRef} />
           </div>
 
           {/* Input */}
-          <div style={{
-            padding: "12px 14px",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            display: "flex", gap: 8,
-          }}>
+          <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", gap: 8 }}>
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -247,14 +279,9 @@ ${courseContext}`;
               onClick={sendMessage}
               disabled={loading || !input.trim()}
               style={{
-                background: loading || !input.trim()
-                  ? "rgba(99,102,241,0.2)"
-                  : "linear-gradient(135deg, #a78bfa, #6366f1)",
-                border: "none", borderRadius: 10,
-                width: 38, height: 38, cursor: loading ? "not-allowed" : "pointer",
-                color: "white", fontSize: 16,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.15s",
+                background: loading || !input.trim() ? "rgba(99,102,241,0.2)" : "linear-gradient(135deg, #a78bfa, #6366f1)",
+                border: "none", borderRadius: 10, width: 38, height: 38, cursor: loading ? "not-allowed" : "pointer",
+                color: "white", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
               }}
             >↑</button>
           </div>
@@ -270,8 +297,7 @@ ${courseContext}`;
           background: "linear-gradient(135deg, #a78bfa, #6366f1)",
           border: "none", cursor: "pointer",
           boxShadow: "0 0 30px rgba(167,139,250,0.4), 0 8px 32px rgba(0,0,0,0.4)",
-          fontSize: 22,
-          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 22, display: "flex", alignItems: "center", justifyContent: "center",
           transition: "transform 0.2s, box-shadow 0.2s",
         }}
         onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
