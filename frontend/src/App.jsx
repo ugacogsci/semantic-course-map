@@ -465,6 +465,9 @@ export default function App() {
               <div style={{ position: "relative", flexGrow: 1 }}>
                 <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: theme.searchIcon, fontSize: 13, pointerEvents: "none" }}>⌕</span>
                 <input
+                  // [CHANGE: BROWSER FIX] - Added autoComplete="off" and a unique name attribute to prevent Firefox/Chrome from treating this as a password/login field.
+                  autoComplete="off"
+                  name="course-search-unique-id"
                   value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search concepts, topics, or classes…"
                   style={{ width: "100%", boxSizing: "border-box", padding: "10px 36px", background: theme.panelBg, backdropFilter: "blur(12px)", border: `1px solid ${theme.panelBorder}`, borderRadius: 10, color: theme.text, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", outline: "none", transition: "all 0.3s ease" }}

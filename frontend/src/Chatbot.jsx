@@ -1,16 +1,37 @@
 import { useState, useRef, useEffect } from "react";
 
-// ─── Simple keyword-based course search (RAG retrieval step) ─────────────────
-function searchCourses(query, courses, topK = 8) {
-  const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+// ─── UPGRADED RAG RETRIEVAL ENGINE ──────────────────────────────────────────
+function searchCourses(query, courses, topK = 12) { // Increased to 12 for better context
+  // 1. Remove common "filler" words that ruin the scoring math
+  const stopwords = new Set(["what", "should", "take", "if", "love", "like", "the", "and", "or", "for", "with", "this", "that", "how", "why", "are", "you", "can", "about", "difference", "between"]);
+  
+  // 2. Tokenize the query, ignoring punctuation
+  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1 && !stopwords.has(w));
+  
+  if (words.length === 0) return[];
+
   const scored = courses.map((c) => {
-    const text = `${c.title} ${c.description} ${c.course_objectives} ${c.topical_outline} ${c.subject}`.toLowerCase();
-    const score = words.reduce((acc, w) => acc + (text.includes(w) ? 1 : 0), 0);
+    const text = `${c.subject} ${c.number} ${c.title} ${c.description} ${c.course_objectives} ${c.topical_outline}`.toLowerCase();
+    let score = 0;
+    
+    words.forEach(w => {
+      // 3. WORD BOUNDARY REGEX: \b ensures "ai" only matches " AI ", not "train" or "main"
+      const regex = new RegExp(`\\b${w}\\b`, 'i');
+      if (regex.test(text)) {
+        // Boost the score if the keyword is in the actual Title or Subject!
+        if (`${c.subject} ${c.title}`.toLowerCase().includes(w)) {
+          score += 5;
+        } else {
+          score += 1;
+        }
+      }
+    });
     return { course: c, score };
   });
+
   return scored
     .filter(s => s.score > 0)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.score - a.score) // Sort by highest score first
     .slice(0, topK)
     .map(s => s.course);
 }
@@ -22,6 +43,25 @@ function formatCoursesForPrompt(courses) {
   ).join("\n\n---\n\n");
 }
 
+// ─── Markdown Parser Helper ───────────────────────────────────────────────────
+//[CHANGE: MARKDOWN RENDERING] - Safely converts **bold** text from Claude into actual bold HTML elements
+const renderMarkdown = (text) => {
+  if (!text) return null;
+  // Splits the text by **...**. 
+  // Capturing group (.*?) ensures the matched text is kept in the array at odd indices.
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  
+  return parts.map((part, index) => {
+    // Odd indices are the text that was between the asterisks
+    if (index % 2 === 1) {
+      return <strong key={index} style={{ color: "#fff", fontWeight: 700 }}>{part}</strong>;
+    }
+    // Even indices are normal text
+    return <span key={index}>{part}</span>;
+  });
+};
+
+// ─── Message bubble ───────────────────────────────────────────────────────────
 // ─── Message bubble ───────────────────────────────────────────────────────────
 function Message({ msg }) {
   const isUser = msg.role === "user";
@@ -49,9 +89,11 @@ function Message({ msg }) {
         fontSize: 13,
         lineHeight: 1.6,
         fontFamily: "'IBM Plex Mono', monospace",
-        whiteSpace: "pre-wrap",
+        // pre-wrap ensures that Claude's newlines and bullet points format correctly
+        whiteSpace: "pre-wrap", 
       }}>
-        {msg.content}
+        {/*[CHANGE: MARKDOWN RENDERING] - Pass the text through our parser instead of rendering raw text */}
+        {renderMarkdown(msg.content)}
       </div>
     </div>
   );
@@ -96,9 +138,8 @@ export default function Chatbot({ courses }) {
     }
   ]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const[loading, setLoading] = useState(false);
   
-  // NEW: API Key State
   const [apiKey, setApiKey] = useState("");
   const [showSettings, setShowSettings] = useState(false);
 
@@ -113,7 +154,7 @@ export default function Chatbot({ courses }) {
     if (!text || loading) return;
 
     if (!apiKey) {
-      setMessages(prev =>[...prev, { role: "assistant", content: "Please enter your Anthropic API Key in the settings first" }]);
+      setMessages(prev =>[...prev, { role: "assistant", content: "--Please enter your Anthropic API Key in the settings first" }]);
       return;
     }
 
@@ -123,36 +164,34 @@ export default function Chatbot({ courses }) {
     setLoading(true);
 
     try {
-      // RAG: retrieve relevant courses
       const relevant = searchCourses(text, courses);
       const courseContext = relevant.length > 0
         ? `Here are the most relevant UGA courses I found:\n\n${formatCoursesForPrompt(relevant)}`
-        : "No specific courses matched, but answer generally about UGA's curriculum.";
+        : "No specific courses matched your keywords. Answer generally about UGA's curriculum based on your base knowledge.";
 
-      const systemPrompt = `You are a helpful exploration assistant embedded in the UGA Semantic Course Map. You help students explore University of Georgia (UGA) courses.
-      Use the provided course information to give accurate, helpful recommendations. 
+      const systemPrompt = `You are a helpful academic exploration assistant embedded in the UGA Semantic Course Map. You help students explore University of Georgia (UGA) courses.
+      Use the provided course information to give accurate, helpful recommendations and explanations. 
       If the user’s question or interests are unclear, ask a clarifying question before giving recommendations. 
-      If information is missing or not included in the provided data, state this clearly and do not make up details.  
-      You help students explore courses, get recommendations, and understand course content.
-      Be friendly, concise, and specific. When recommending courses always mention the course code and title.
-      Only recommend courses that appear in the context provided.
+      Be friendly, concise, and specific. When recommending courses always mention the course code and title in bold.
+      Only recommend courses that appear in the context provided below. Be very concise. Try not to exceed 70 words.
 
-${courseContext}`;
+      CONTEXT:
+      ${courseContext}`;
 
       const history = messages
-        .filter(m => m.role !== "system" && m.content !== "Please enter your Anthropic API Key in the settings first")
+        .filter(m => m.role !== "system" && !m.content.includes("--"))
         .map(m => ({ role: m.role, content: m.content }));
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "x-api-key": apiKey, // Use the dynamically provided API key
+          "x-api-key": apiKey, 
           "anthropic-version": "2023-06-01",
           "anthropic-dangerous-direct-browser-access": "true",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", 
+          model: "claude-haiku-4-5-20251001", 
           max_tokens: 1000,
           system: systemPrompt,
           messages:[...history, { role: "user", content: text }],
@@ -192,7 +231,6 @@ ${courseContext}`;
         }
       `}</style>
 
-      {/* Chat window */}
       {open && (
         <div style={{
           position: "fixed", bottom: 90, right: 24, zIndex: 200,
@@ -241,13 +279,17 @@ ${courseContext}`;
           {showSettings && (
             <div style={{ padding: "12px", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
               <input 
-                type="password"
+                //[CHANGE: PASSWORD BUG FIX] - Changed from type="password" to type="text". 
+                // This permanently stops Firefox from thinking the App.jsx search bar is a username field
+                type="text"
                 placeholder="Paste Anthropic API Key (sk-ant-...)"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 style={{
                   width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 6, padding: "8px", color: "white", fontFamily: "monospace", fontSize: 11, outline: "none"
+                  borderRadius: 6, padding: "8px", color: "white", fontFamily: "monospace", fontSize: 11, outline: "none",
+                  // Optional: use webkit-text-security if you still want it to look like dots visually
+                  WebkitTextSecurity: "disc" 
                 }}
               />
             </div>
