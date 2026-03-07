@@ -109,7 +109,7 @@ const getCyStyle = (theme) =>[
       "transition-property": "width, height, background-color, border-color, opacity",
       "transition-duration": "0.15s",
       "overlay-opacity": 0,
-      label: "data(label)", // [CHANGE: RESTORED] - Restored the label field so hovered nodes show text.
+      label: "data(label)", //[CHANGE: RESTORED] - Restored the label field so hovered nodes show text.
       "font-family": "'IBM Plex Mono', monospace",
       "font-size": 0, 
       "text-outline-width": 2,
@@ -121,12 +121,6 @@ const getCyStyle = (theme) =>[
     selector: "node:hover",
     style: { width: 26, height: 26, "border-color": theme.nodeHoverBorder, "border-width": 2, "font-size": 12, "z-index": 999 },
   },
-  {
-    selector: "node.selected",
-    // [CHANGE: VISUAL FEEDBACK] - Increased selected node size (28px -> 60px) and border width so the active course clearly stands out against the cluster.
-    //[CHANGE: CHATBOT MAP SYNC] - Added opacity: 1 so even if a recommended node is currently hidden by a search filter, it lights up bright white
-    style: { width: 60, height: 60, "border-color": theme.nodeSelectedBorder, "border-width": 8, "background-color": theme.nodeSelectedBg, "z-index": 1000, opacity: 1 },
-  },
   //[CHANGE: DIMMED OPACITY] - Increased dimmed opacity from 0.05 to 0.15 so the background nodes remain slightly visible as a "galaxy" context.
   { selector: '.dimmed', style: { 'opacity': 0.10 } },
   { 
@@ -134,12 +128,23 @@ const getCyStyle = (theme) =>[
     // [CHANGE: SEARCH PROMINENCE] - Increased size (18->40px) and added border to highlighted nodes so search/filter results visually "pop" against the dimmed background.
     style: { 
       'opacity': 1, 
-      'z-index': 10,
+      'z-index': 1000,
       'width': 40,
       'height': 40,
       'border-color': theme.borderHighlight,
       'border-width': 2
     } 
+  },
+  {
+    selector: '.bot-recommended',
+    //[CHANGE: PERSISTENT CHATBOT SYNC] - Created a dedicated class for Chatbot recommendations. 
+    // It looks exactly like the .selected class, but because it is a custom class, it won't be cleared when the user taps the background!
+    style: { width: 90, height: 90, "border-color": theme.nodeSelectedBorder, "border-width": 10, "background-color": theme.nodeSelectedBg, "z-index": 1001, opacity: 1 },
+  },
+  {
+    selector: "node.selected",
+    // [CHANGE: VISUAL FEEDBACK] - Increased selected node size (28px -> 60px) and border width so the active course clearly stands out against the cluster.
+    style: { width: 60, height: 60, "border-color": theme.nodeSelectedBorder, "border-width": 8, "background-color": theme.nodeSelectedBg, "z-index": 1000 },
   }
 ];
 
@@ -164,7 +169,7 @@ export default function App() {
   const[isDarkMode, setIsDarkMode] = useState(true);
   const theme = isDarkMode ? THEMES.dark : THEMES.light;
   
-  // [CHANGE: LANDING PAGE INTERCEPT] - Added states to hold the user on a configuration screen before mounting the heavy Cytoscape canvas.
+  //[CHANGE: LANDING PAGE INTERCEPT] - Added states to hold the user on a configuration screen before mounting the heavy Cytoscape canvas.
   const [hasLaunched, setHasLaunched] = useState(false);
   const [landingUni, setLandingUni] = useState("UGA");
   const[landingTerm, setLandingTerm] = useState("all");
@@ -181,9 +186,12 @@ export default function App() {
   const[selectedCourse, setSelectedCourse] = useState(null);
   //[CHANGE: MULTI-SELECT LEGEND] - Changed legend tracking to a Set() to allow multiple departments to be selected simultaneously.
   const[selectedDepartments, setSelectedDepartments] = useState(new Set());
-  
+
   //[CHANGE: LEGEND DEFAULT] - Set initial state to true so the department list is open when the map loads.
   const[legendExpanded, setLegendExpanded] = useState(true);
+
+  //[CHANGE: CHATBOT SYNC FIX] - New state explicitly tracking courses recommended by the chatbot.
+  const [chatbotRecs, setChatbotRecs] = useState(new Set());
 
   //[CHANGE: UNIFIED COUNTER] - Extracted to state so it can update instantly during imperative filtering.
   const[visibleCount, setVisibleCount] = useState(0);
@@ -202,6 +210,10 @@ export default function App() {
       .then(data => {
         const mappedData = data.filter(c => c.x !== undefined && c.y !== undefined).map(c => ({
           ...c,
+          // [CHANGE: CROSS-LISTING PARSER] - Pre-compute a Set of subject codes for every course. 
+          // "AAEC (ENVM)" -> Set(["AAEC", "ENVM"])
+          subjectCodes: new Set((c.subject || '').match(/[A-Z]{3,4}/g) || []),
+
           //[CHANGE: SEMANTIC SEARCH / PRE-COMPUTING] - Concatenated all fields on initial load to avoid expensive string building during every search keystroke.
           searchableText: `${c.subject || ''} ${c.number || ''} ${c.title || ''} ${c.description || ''} ${c.course_objectives || ''} ${c.topical_outline || ''}`.toLowerCase(),
           searchTitle: String(c.title || '').toLowerCase(),
@@ -258,21 +270,42 @@ export default function App() {
   }, [courses]);
 
 
-  //[CHANGE: IMPERATIVE ENGINE] - This effect bypasses React to interact with Cytoscape directly. 
+  // [CHANGE: IMPERATIVE ENGINE & CHATBOT OVERRIDE] This effect bypasses React to interact with Cytoscape directly. 
   // It computes exactly which IDs match the search/legend, and uses Cytoscape's batch() API to swap CSS classes in milliseconds.
   useEffect(() => {
     if (!cyInitialized || !cyRef.current || courses.length === 0) return;
     
     const cy = cyRef.current;
+
+    // Prevent crashes if the graph hasn't physically drawn the nodes yet
+    const allNodes = cy.nodes();
+    if (allNodes.length === 0) return;
     
     //[CHANGE: STRICT SEARCH FIX] - Tokenizes search term by spaces so "intro arti" correctly finds "ARTI 1301: Intro to AI".
     const searchWords = debouncedSearch.toLowerCase().trim().split(/\s+/).filter(w => w.length > 0);
     
+    // [CHANGE: SUBSET LOGIC PRE-CALCULATION] 
+    // Parse the selected sidebar items into sets of codes before the loop to keep it fast.
+    const selectedFilterSets = [];
+    selectedDepartments.forEach(deptStr => {
+      const codes = deptStr.match(/[A-Z]{3,4}/g);
+      if (codes) selectedFilterSets.push(new Set(codes));
+    });
+
     const highlightedIds = new Set();
+    const recommendedIds = new Set();
     let count = 0;
 
     // Pure JS loop (runs in < 10ms for 14,000 items)
     courses.forEach((c) => {
+      const courseId = `${c.subject}-${c.number}`;
+      
+      // [CHANGE: PERSISTENT CHATBOT SYNC] - Separated chatbot logic from normal filter logic.
+      // This guarantees existing filters are perfectly preserved, while chatbot nodes get their own dedicated class overlay.
+      if (chatbotRecs.has(courseId)) {
+        recommendedIds.add(courseId);
+      }
+
       let matchesSearch = true;
       // [CHANGE: TARGETED SEARCH] - Switch statement routes the search logic to the specific field the user selected in the dropdown.
       if (searchWords.length > 0) {
@@ -285,39 +318,54 @@ export default function App() {
       }
 
       //[CHANGE: MULTI-SELECT LEGEND] - Node passes if no legend filters exist, or if its subject is in the active Set().
-      const matchesLegend = selectedDepartments.size === 0 || selectedDepartments.has(c.subject);
+      //const matchesLegend = selectedDepartments.size === 0 || selectedDepartments.has(c.subject);
+      
+      // [CHANGE: SUBSET MATCHING LOGIC]
+      let matchesLegend = selectedDepartments.size === 0;
+      if (!matchesLegend) {
+        // Check if ANY selected filter is a SUBSET of the course's subject codes.
+        // e.g. Selected "AAEC" (Set{AAEC}) is contained in Course "AAEC (ENVM)" (Set{AAEC, ENVM}) -> Match!
+        matchesLegend = selectedFilterSets.some(filterSet => {
+          for (let code of filterSet) {
+            if (!c.subjectCodes.has(code)) return false;
+          }
+          return true;
+        });
+      }
       
       //[CHANGE: UNIFIED FILTER DIMMING] - Node is highlighted ONLY if it passes both the search AND the legend filter. 
       if (matchesSearch && matchesLegend) {
-        highlightedIds.add(`${c.subject}-${c.number}`);
-        //[CHANGE: UNIFIED COUNTER] - Increment counter only for fully visible/highlighted nodes.
-        count++;
+        highlightedIds.add(courseId);
       }
     });
 
-    setVisibleCount(count);
+    //[CHANGE: UNIFIED COUNTER] - Accurately merge highlighted + recommended sets so the counter stays truthful.
+    const totalVisible = new Set([...highlightedIds, ...recommendedIds]).size;
+    setVisibleCount(totalVisible);
 
     // Apply the classes using Cytoscape's ultra-fast imperative API
     cy.startBatch();
-    const allNodes = cy.nodes();
-    allNodes.removeClass('highlighted dimmed'); // Reset all
+    allNodes.removeClass('highlighted dimmed bot-recommended'); 
     
-    const highlightedEles = allNodes.filter(ele => highlightedIds.has(ele.id()));
-    const dimmedEles = allNodes.difference(highlightedEles);
+    const recommendedEles = allNodes.filter(ele => recommendedIds.has(ele.id()));
+    const highlightedEles = allNodes.filter(ele => highlightedIds.has(ele.id()) && !recommendedIds.has(ele.id()));
+    const dimmedEles = allNodes.difference(highlightedEles).difference(recommendedEles);
     
+    recommendedEles.addClass('bot-recommended');
     highlightedEles.addClass('highlighted');
     dimmedEles.addClass('dimmed');
     cy.endBatch();
 
-    //[CHANGE: AUTO-CAMERA PAN] - When a search executes, the camera smoothly flies to the active nodes so they don't get lost
-    if (debouncedSearch.length > 0 || selectedDepartments.size > 0) {
+    //[CHANGE: AUTO-CAMERA PAN] - When a search executes, the camera smoothly flies to the active nodes.
+    // We explicitly skip this pan if the Chatbot is what triggered the render, allowing the chatbot to control its own targeted pan.
+    if (chatbotRecs.size === 0 && (debouncedSearch.length > 0 || selectedDepartments.size > 0)) {
       if (highlightedEles.length > 0 && highlightedEles.length < courses.length) {
         setTimeout(() => {
           if(cyRef.current) cyRef.current.animate({ fit: { eles: highlightedEles, padding: 150 } }, { duration: 600, easing: 'ease-in-out-cubic' });
         }, 50);
       }
     }
-  },[debouncedSearch, searchField, selectedDepartments, courses, cyInitialized]);
+  },[debouncedSearch, searchField, selectedDepartments, chatbotRecs, courses, cyInitialized]);
 
 
   const handleCyReady = useCallback((cy) => {
@@ -347,43 +395,39 @@ export default function App() {
     });
   },[]);
 
-
-  // [CHANGE: CHATBOT MAP SYNC] - A callback that receives an array of Course IDs from the Chatbot, 
-  // instantly highlights them on the graph, and smoothly flies the camera to show the user where they are
+  //[CHANGE: CHATBOT SYNC LOGIC] - Upgraded this function. It delegates class application entirely to the main useEffect, 
+  // ensuring that the AI's suggestions perfectly integrate into the existing search/filter visual hierarchy.
   const handleChatbotRecommendations = useCallback((courseIds) => {
     if (!cyRef.current) return;
     const cy = cyRef.current;
     
-    // Close the modal so the user can see the map move
     setSelectedCourse(null);
     
     cy.startBatch();
     cy.$('.selected').removeClass('selected');
-    
-    let targets = cy.collection();
-
-    // [CHANGE: MULTI-SELECT FIX] - Swapped the brittle CSS selector string for the native .getElementById method!
-    // This physically bypasses CSS syntax parsing entirely, allowing us to seamlessly highlight cross-listed courses like ARTI(PHIL) without crashing.
-    // We loop through each parsed ID from the AI and explicitly pull the node object
-    courseIds.forEach(id => {
-      const node = cy.getElementById(id);
-      if (node.length > 0) {
-        targets = targets.union(node);
-      }
-    });
-
-    if (targets.length > 0) {
-      targets.addClass('selected'); // This forces opacity: 1 and a thick white border, ignoring the dim filter
-    }
     cy.endBatch();
 
-    // Fly the camera to frame all the recommended courses
-    if (targets.length > 0) {
-      setTimeout(() => {
+    // 1. Update the state so the main useEffect cleanly applies the `.bot-recommended` override class
+    setChatbotRecs(new Set(courseIds));
+    
+    // 2. Wait 100ms for the main useEffect to finish applying the CSS, then fly the camera to the AI's choices
+    setTimeout(() => {
+      let targets = cy.collection();
+
+      //[CHANGE: MULTI-SELECT FIX] - Swapped the brittle CSS selector string for the native .getElementById method
+      // This physically bypasses CSS syntax parsing entirely, allowing us to seamlessly highlight cross-listed courses like ARTI(PHIL) without crashing.
+      courseIds.forEach(id => {
+        const node = cy.getElementById(id);
+        if (node.length > 0) {
+          targets = targets.union(node);
+        }
+      });
+      
+      if (targets.length > 0) {
         cy.animate({ fit: { eles: targets, padding: 150 } }, { duration: 800, easing: 'ease-in-out-cubic' });
-      }, 100);
-    }
-  }, []);
+      }
+    }, 100);
+  },[]);
 
   //[CHANGE: COMPONENT MEMOIZATION] - Wrapped CytoscapeComponent in useMemo so React doesn't try to re-render the 14k nodes on every single search keystroke.
   //[CHANGE: THEME SYSTEM] - Added theme to dependency array so Cytoscape updates node colors when light/dark mode is toggled.
@@ -508,15 +552,22 @@ export default function App() {
               <div style={{ position: "relative", flexGrow: 1 }}>
                 <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: theme.searchIcon, fontSize: 13, pointerEvents: "none" }}>⌕</span>
                 <input
-                  // [CHANGE: BROWSER FIX] - Added autoComplete="off" and a unique name attribute to prevent Firefox/Chrome from treating this as a password/login field.
+                  //[CHANGE: BROWSER FIX] - Added autoComplete="off" and a unique name attribute to prevent Firefox/Chrome from treating this as a password/login field.
                   autoComplete="off"
                   name="course-search-unique-id"
-                  value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                  value={searchTerm} onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    // If user starts typing manually, clear the chatbot recommendations!
+                    if (chatbotRecs.size > 0) setChatbotRecs(new Set()); 
+                  }}
                   placeholder="Search concepts, topics, or classes…"
                   style={{ width: "100%", boxSizing: "border-box", padding: "10px 36px", background: theme.panelBg, backdropFilter: "blur(12px)", border: `1px solid ${theme.panelBorder}`, borderRadius: 10, color: theme.text, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", outline: "none", transition: "all 0.3s ease" }}
                 />
                 {searchTerm && (
-                  <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: theme.textMuted, cursor: "pointer", fontSize: 13 }}>✕</button>
+                  <button onClick={() => {
+                    setSearchTerm("");
+                    setChatbotRecs(new Set());
+                  }} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: theme.textMuted, cursor: "pointer", fontSize: 13 }}>✕</button>
                 )}
               </div>
 
@@ -537,7 +588,7 @@ export default function App() {
                 <option value="database_mapped_tsne_1000">t-SNE (P=1000)</option>
               </select>
             </div>
-
+            
             {/* Legend */}
             {!loading && (
               <div style={{
@@ -545,9 +596,9 @@ export default function App() {
                 background: theme.panelBg, backdropFilter: "blur(12px)",
                 border: `1px solid ${theme.panelBorder}`, borderRadius: 10, padding: "12px 16px",
                 display: "flex", flexDirection: "column", gap: 6, 
-                // [CHANGE: ERGONOMICS - LEGEND MAX HEIGHT] - Adjusted max height to stop above the theme switch.
+                //[CHANGE: ERGONOMICS - LEGEND MAX HEIGHT] - Adjusted max height to stop above the theme switch.
                 maxHeight: "calc(100vh - 180px)",
-                // [CHANGE: ERGONOMICS - LEGEND WIDTH] - Conditional width makes the collapsed version less intrusive.
+                //[CHANGE: ERGONOMICS - LEGEND WIDTH] - Conditional width makes the collapsed version less intrusive.
                 width: legendExpanded ? 220 : 200,
                 transition: "all 0.3s ease"
               }}>
@@ -583,8 +634,8 @@ export default function App() {
             )}
 
             {/* Counter */}
-            {/* [CHANGE: ERGONOMICS - COUNTER POSITION] - Moved the counter from the bottom right to the top right corner. */}
-            {(debouncedSearch || selectedDepartments.size > 0) && (
+            {/*[CHANGE: ERGONOMICS - COUNTER POSITION] - Moved the counter from the bottom right to the top right corner. */}
+            {(debouncedSearch || selectedDepartments.size > 0 || chatbotRecs.size > 0) && (
               <div style={{
                 position: "absolute", top: 17, right: 24, zIndex: 20,
                 fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: theme.textMuted,

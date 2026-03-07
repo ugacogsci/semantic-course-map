@@ -216,8 +216,24 @@ export default function Chatbot({ courses, onRecommend }) {
           const matches =[...reply.matchAll(regex)];
           
           if (matches.length > 0) {
-            // Format them exactly how our node IDs are formatted ("CSCI-4360")
-            const courseIds = matches.map(m => `${m[1].toUpperCase()}-${m[2].toUpperCase()}`);
+            const courseIds =[];
+            
+            matches.forEach(m => {
+              const subject = m[1].toUpperCase();
+              const numberStr = m[2].toUpperCase();
+              
+              // Format the exact match ("MARK-4670/4670E") just in case it exists like that
+              courseIds.push(`${subject}-${numberStr}`);
+              
+              //[CHANGE: DATABASE SPLITTING FIX] - If Claude groups courses with a slash (e.g. 4670/4670E),
+              // split them and add both so Cytoscape can find the individual nodes!
+              if (numberStr.includes('/')) {
+                numberStr.split('/').forEach(num => {
+                  if (num.trim()) courseIds.push(`${subject}-${num.trim()}`);
+                });
+              }
+            });
+            
             onRecommend(courseIds); // Pass the IDs back to App.jsx to select them on the map
           }
         }
