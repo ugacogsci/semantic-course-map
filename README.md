@@ -1,6 +1,6 @@
 ## UGA Semantic Course Map
 
-An exploratory, AI-powered spatial visualization of the University of Georgia course catalog.
+An exploratory, AI-powered spatial visualization of the University of Georgia course catalog.  
 
 Built by the Cognitive Science Club for The Generative AI Competition 3.0.
 
