@@ -2,7 +2,7 @@
 
 An exploratory, AI-powered spatial visualization of the University of Georgia course catalog.  
 
-Built by the Cognitive Science Club for The Generative AI Competition 3.0.
+Built by the Cognitive Science Club for The Generative AI Competition 3.0.  
 
 [Go to Project](https://ugacogsci.github.io/semantic-course-map/)
 
