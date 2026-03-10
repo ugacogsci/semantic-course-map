@@ -14,7 +14,7 @@ Navigating a university course catalog is typically a highly functional process,
 - Orion - The AI Course Assistant: A built-in RAG chatbot powered by Claude 4.5 Haiku. Users can ask complex queries (e.g., "What courses combine psychology and AI?"), and the bot retrieves the most semantically relevant courses to synthesize a personalized response.
 - High-Performance UI: Capable of rendering 14,000+ interactive nodes using Cytoscape.js.
 
-This repository uses specific branching for development and deployment.
+This repository uses specific branching for development and deployment.  
 
     - main (Current Branch): Contains the complete, uncompiled source code. This is where you will find our Python AI pipeline (backend/) and our React application (frontend/).
 
