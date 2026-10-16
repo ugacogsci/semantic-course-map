@@ -64,9 +64,7 @@ The Anthropic API key is not hardcoded into the repository.
 To use the "Orion" RAG Course Assistant:
 - Click the Chatbot icon (✦) in the bottom right corner of the application.
 - Click the Settings icon (⚙️) in the Chatbot header.
-- Paste a valid Anthropic API Key. You can use this one (**get rid of ampersands before pasting**):
-
-  sk-ant-api03-P8JaI&&&&&L7sAybfxwej1j5x&&&&&YBzJNVlMsV1Z-KYAt9jIOR&&&&&V0_GFgWiOXYtVyXiVk3x&&&&&wOMzkRC2dsDZroe0Akj&&&&&lbHog-lyK_KwAA
+- Paste a valid Anthropic API Key.
 - The key is held strictly in your browser's local memory and is never saved to a database.
 
 <br>
